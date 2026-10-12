@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Factura Libre · Facturas gratis para autónomos</title>
+<meta name="description" content="Crea facturas legales para autónomos (IVA, retención de IRPF, numeración) e imprímelas o guárdalas en PDF. Gratis, sin registro, todo en tu navegador.">
+<link rel="stylesheet" href="style.css"><style>:root{--accent:#a78bfa}</style></head><body><div class="wrap">
+<header><div class="logo">🧾 Factura <b>Libre</b></div><p>Facturas correctas para autónomos, sin registro y sin pagar suscripción.</p>
+<span class="tag">RD 1619/2012 · tus datos se quedan en tu navegador</span></header>
+<div class="card noprint">
+ <div class="g2"><div><label>Nº de factura</label><input id="num"></div><div><label>Fecha</label><input id="fecha" type="date"></div></div>
+ <h3>Tus datos</h3><div class="g3"><div><label>Nombre / razón social</label><input id="en"></div><div><label>NIF</label><input id="enif"></div><div><label>Domicilio</label><input id="edir"></div></div>
+ <h3>Cliente</h3><div class="g3"><div><label>Nombre / razón social</label><input id="cn"></div><div><label>NIF</label><input id="cnif"></div><div><label>Domicilio</label><input id="cdir"></div></div>
+ <h3>Conceptos</h3><div id="lineas"></div><button class="btn sec" id="add">+ Añadir línea</button>
+ <div class="g2"><div><label>IVA</label><select id="iva"><option>21</option><option>10</option><option>4</option><option value="0">0 (exento)</option></select></div>
+  <div><label>Retención IRPF</label><select id="irpf"><option>15</option><option>7</option><option value="0">0 (sin retención)</option></select></div></div>
+ <button class="btn" id="gen">Generar factura</button><div id="err"></div></div>
+<div class="paper" id="doc" style="display:none"></div>
+<button class="btn sec noprint" id="print" style="display:none">🖨️ Imprimir / guardar PDF</button>
+<div class="note">Orientativo. Desde 2026-2027 la ley Verifactu exige que el software de facturación registre las facturas de forma inalterable: esta herramienta sirve para facturas sencillas en papel/PDF; consulta tu situación con tu gestoría.</div>
+<footer>Código abierto · <a href="https://github.com/romebkkk/factura-libre" target="_blank">GitHub</a> · Hecho con ❤️ por <a href="https://dataflowelegance.es" target="_blank">DataFlow Elegance</a></footer></div>
+<script src="factura.js"></script><script>
+var $=function(s){return document.querySelector(s)},F=FacturaLibre;
+function esc(s){return String(s||"").replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function eur(x){return x.toLocaleString("es-ES",{style:"currency",currency:"EUR"})}
+function get(k){try{return localStorage.getItem("fl:"+k)||""}catch(e){return""}}function set(k,v){try{localStorage.setItem("fl:"+k,v)}catch(e){}}
+$("#fecha").value=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);$("#num").value=F.siguienteNumero(get("ultimo"));
+["en","enif","edir"].forEach(function(k){$("#"+k).value=get(k)});
+function linea(){var r=document.createElement("div");r.className="row";r.innerHTML='<input placeholder="Concepto" style="flex:3"><input type="number" placeholder="Cant." value="1" style="flex:1"><input type="number" placeholder="Precio €" style="flex:1"><button class="x">✕</button>';r.querySelector(".x").onclick=function(){r.remove()};$("#lineas").appendChild(r)}
+linea();$("#add").onclick=linea;
+$("#gen").onclick=function(){
+ var lineas=[].map.call(document.querySelectorAll("#lineas .row"),function(r){var i=r.querySelectorAll("input");return{concepto:i[0].value,cantidad:i[1].value,precio:i[2].value}});
+ var d={numero:$("#num").value,fecha:$("#fecha").value,emisor_nombre:$("#en").value,emisor_nif:$("#enif").value,emisor_dir:$("#edir").value,cliente_nombre:$("#cn").value,cliente_nif:$("#cnif").value};
+ var v=F.validar(d,lineas);$("#err").innerHTML=(v.faltan.length?'<p class="bad">Falta: '+v.faltan.join(", ")+'</p>':'')+v.avisos.map(function(a){return'<p class="warn">'+a+'</p>'}).join("");
+ if(!v.valido)return;
+ ["en","enif","edir"].forEach(function(k){set(k,$("#"+k).value)});set("ultimo",d.numero);
+ var t=F.calcular(lineas,$("#iva").value,$("#irpf").value);
+ var filas=lineas.filter(function(l){return l.concepto}).map(function(l){return'<tr><td>'+esc(l.concepto)+'</td><td>'+esc(l.cantidad)+'</td><td>'+eur(+l.precio||0)+'</td><td>'+eur((+l.cantidad||0)*(+l.precio||0))+'</td></tr>'}).join("");
+ $("#doc").innerHTML='<h2 style="margin:0">FACTURA '+esc(d.numero)+'</h2><p>Fecha: '+esc(d.fecha)+'</p><div class="g2"><div><b>Emisor</b><br>'+esc(d.emisor_nombre)+'<br>NIF: '+esc(d.emisor_nif)+'<br>'+esc(d.emisor_dir)+'</div><div><b>Cliente</b><br>'+esc(d.cliente_nombre)+'<br>NIF: '+esc(d.cliente_nif)+'<br>'+esc($("#cdir").value)+'</div></div>'+
+ '<table><tr><th>Concepto</th><th>Cant.</th><th>Precio</th><th>Importe</th></tr>'+filas+'</table><table style="width:auto;margin-left:auto"><tr><td>Base imponible</td><td>'+eur(t.base)+'</td></tr><tr><td>IVA '+$("#iva").value+'%</td><td>'+eur(t.iva)+'</td></tr>'+(+$("#irpf").value?'<tr><td>Retención IRPF '+$("#irpf").value+'%</td><td>-'+eur(t.irpf)+'</td></tr>':'')+'<tr><th>TOTAL</th><th>'+eur(t.total)+'</th></tr></table>';
+ $("#doc").style.display="block";$("#print").style.display="";$("#doc").scrollIntoView({behavior:"smooth"})};
+$("#print").onclick=function(){window.print()};
+</script></body></html>
